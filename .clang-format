@@ -1,0 +1,10 @@
+BasedOnStyle: Google
+IndentWidth: 8
+TabWidth: 8
+UseTab: Never
+ColumnLimit: 80
+
+AllowShortFunctionsOnASingleLine: None
+AlignAfterOpenBracket: AlwaysBreak
+BinPackArguments: false
+BinPackParameters: false

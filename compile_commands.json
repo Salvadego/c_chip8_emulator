@@ -1,0 +1,20 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Werror",
+      "-Wextra",
+      "-std=c99",
+      "-I/usr/include/SDL2",
+      "-D_REENTRANT",
+      "-c",
+      "-o",
+      "src/main.o",
+      "src/main.c"
+    ],
+    "directory": "/home/matheussalvadego/Documentos/Languages/C/Emul/chip8",
+    "file": "/home/matheussalvadego/Documentos/Languages/C/Emul/chip8/src/main.c",
+    "output": "/home/matheussalvadego/Documentos/Languages/C/Emul/chip8/src/main.o"
+  }
+]
