@@ -4,6 +4,7 @@ TARGET_DIR = bin
 TARGET = $(TARGET_DIR)/chip8
 SRC = ./src/main.c
 OBJ = $(SRC:.c=.o)
+DEBUGFLAGS = -DDEBUG
 
 .PHONY: all clean run
 
@@ -24,3 +25,7 @@ run: all
 clean:
 	rm -f $(TARGET) $(OBJ)
 	rm -rf $(TARGET_DIR)
+
+debug: CFLAGS += -DDEBUG
+debug: clean all
+

@@ -86,5 +86,7 @@ with open(args[0], "rb") as f:
     data = f.read()
 
 for i in range(0, len(data), 2):
+    chunk = data[i:i+2]
+    hex_bytes = ' '.join(f'{b:02x}' for b in chunk)
     opcode = (data[i] << 8) | data[i + 1]
-    print(f"{i+0x200:04x}: {decode_instruction(opcode)}")
+    print(f"{i+0x200:04x}: {opcode} | {decode_instruction(opcode)} <{hex_bytes}>")
