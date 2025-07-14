@@ -184,6 +184,15 @@ void inst_2NNN(chip8_t *chip8) {
         chip8->PC = chip8->inst.addr.NNN;
 }
 
+void inst_3XNN(chip8_t *chip8) {
+        const u8 VxReg = chip8->inst.reg_byte.Vx;
+        const u8 byte = chip8->inst.reg_byte.KK;
+        DEBUG_LOG("If V%X == 0x%02X, skip next instruction\n", VxReg, byte);
+        if (chip8->V[VxReg] == byte) {
+                chip8->PC += 2;
+        }
+}
+
 void inst_ANNN(chip8_t *chip8) {
         DEBUG_LOG("I = 0x%04X\n", chip8->inst.addr.NNN);
         chip8->I = chip8->inst.addr.NNN;
@@ -262,6 +271,7 @@ const instruction_handler_t instruction_table[INST_COUNT] = {
     [INST_0] = dispatch_zero_family,
     [INST_1] = inst_1NNN,
     [INST_2] = inst_2NNN,
+    [INST_3] = inst_3XNN,
     [INST_6] = inst_6XNN,
     [INST_7] = inst_7XNN,
     [INST_A] = inst_ANNN,
