@@ -1,92 +1,61 @@
 import sys
 
-def decode_instruction(opcode):
+
+def bits_to_str(byte):
+    str = "".join("1" if (byte & (1 << (7 - i))) else " " for i in range(8))
+    return str
+
+
+def decode_instruction(opcode, ram=None, I=0):
     nnn = opcode & 0x0FFF
-    n   = opcode & 0x000F
-    x   = (opcode & 0x0F00) >> 8
-    y   = (opcode & 0x00F0) >> 4
-    kk  = opcode & 0x00FF
+    n = opcode & 0x000F
+    x = (opcode & 0x0F00) >> 8
+    y = (opcode & 0x00F0) >> 4
+    kk = opcode & 0x00FF
 
     if opcode == 0x00E0:
         return "disp_clear()"
     elif opcode == 0x00EE:
         return "return"
-    elif opcode & 0xF000 == 0x0000:
-        return f"call_machine(0x{nnn:03X})"
     elif opcode & 0xF000 == 0x1000:
         return f"goto 0x{nnn:03X}"
     elif opcode & 0xF000 == 0x2000:
-        return f"*(0x{nnn:03X})()"
-    elif opcode & 0xF000 == 0x3000:
-        return f"if (V[{x:X}] == 0x{kk:02X}) skip"
-    elif opcode & 0xF000 == 0x4000:
-        return f"if (V[{x:X}] != 0x{kk:02X}) skip"
-    elif opcode & 0xF00F == 0x5000:
-        return f"if (V[{x:X}] == V[{y:X}]) skip"
+        return f"call 0x{nnn:03X}"
     elif opcode & 0xF000 == 0x6000:
         return f"V[{x:X}] = 0x{kk:02X}"
     elif opcode & 0xF000 == 0x7000:
         return f"V[{x:X}] += 0x{kk:02X}"
-    elif opcode & 0xF00F == 0x8000:
-        return f"V[{x:X}] = V[{y:X}]"
-    elif opcode & 0xF00F == 0x8001:
-        return f"V[{x:X}] |= V[{y:X}]"
-    elif opcode & 0xF00F == 0x8002:
-        return f"V[{x:X}] &= V[{y:X}]"
-    elif opcode & 0xF00F == 0x8003:
-        return f"V[{x:X}] ^= V[{y:X}]"
-    elif opcode & 0xF00F == 0x8004:
-        return f"V[{x:X}] += V[{y:X}]; VF = carry"
-    elif opcode & 0xF00F == 0x8005:
-        return f"V[{x:X}] -= V[{y:X}]; VF = !borrow"
-    elif opcode & 0xF00F == 0x8006:
-        return f"V[{x:X}] >>= 1; VF = LSB(V[{x:X}])"
-    elif opcode & 0xF00F == 0x8007:
-        return f"V[{x:X}] = V[{y:X}] - V[{x:X}]; VF = !borrow"
-    elif opcode & 0xF00F == 0x800E:
-        return f"V[{x:X}] <<= 1; VF = MSB(V[{x:X}])"
-    elif opcode & 0xF00F == 0x9000:
-        return f"if (V[{x:X}] != V[{y:X}]) skip"
     elif opcode & 0xF000 == 0xA000:
         return f"I = 0x{nnn:03X}"
-    elif opcode & 0xF000 == 0xB000:
-        return f"PC = V[0] + 0x{nnn:03X}"
-    elif opcode & 0xF000 == 0xC000:
-        return f"V[{x:X}] = rand() & 0x{kk:02X}"
     elif opcode & 0xF000 == 0xD000:
-        return f"draw(V[{x:X}], V[{y:X}], 0x{n:X})"
-    elif opcode & 0xF0FF == 0xE09E:
-        return f"if (key == V[{x:X}]) skip"
-    elif opcode & 0xF0FF == 0xE0A1:
-        return f"if (key != V[{x:X}]) skip"
-    elif opcode & 0xF0FF == 0xF007:
-        return f"V[{x:X}] = get_delay()"
-    elif opcode & 0xF0FF == 0xF00A:
-        return f"V[{x:X}] = wait_key()"
-    elif opcode & 0xF0FF == 0xF015:
-        return f"set_delay(V[{x:X}])"
-    elif opcode & 0xF0FF == 0xF018:
-        return f"set_sound(V[{x:X}])"
-    elif opcode & 0xF0FF == 0xF01E:
-        return f"I += V[{x:X}]"
-    elif opcode & 0xF0FF == 0xF029:
-        return f"I = sprite_addr[V[{x:X}]]"
-    elif opcode & 0xF0FF == 0xF033:
-        return f"set_BCD(V[{x:X}])"
-    elif opcode & 0xF0FF == 0xF055:
-        return f"mem[I..I+{x:X}] = V[0..{x:X}]"
-    elif opcode & 0xF0FF == 0xF065:
-        return f"V[0..{x:X}] = mem[I..I+{x:X}]"
+        info = f"draw(V[{x:X}], V[{y:X}], 0x{n:X})"
+        if ram is not None:
+            offset = I - 0x200
+            sprite_bytes = ram[offset : offset + n]
+            sprite_visual = "\n  " + "\n  ".join(
+                bits_to_str(b) for b in sprite_bytes
+            )
+            return info + "\n  Sprite visual:\n" + sprite_visual + '\n'
+        return info
     else:
-        return "UNKNOWN"
+        return None
+
 
 args = sys.argv[1:]
 
 with open(args[0], "rb") as f:
     data = f.read()
 
+PC = 0x200
+I = 0
+
 for i in range(0, len(data), 2):
-    chunk = data[i:i+2]
-    hex_bytes = ' '.join(f'{b:02x}' for b in chunk)
     opcode = (data[i] << 8) | data[i + 1]
-    print(f"{i+0x200:04x}: {opcode} | {decode_instruction(opcode)} <{hex_bytes}>")
+
+    if (opcode & 0xF000) == 0xA000:
+        I = opcode & 0x0FFF
+
+    decoded = decode_instruction(opcode, data, I)
+    if decoded is not None:
+        hex_bytes = f"{data[i]:02X} {data[i + 1]:02X}"
+        print(f"{PC + i:04X}: {opcode:04X} | {decoded} <{hex_bytes}>")
