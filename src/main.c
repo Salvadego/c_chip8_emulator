@@ -11,9 +11,25 @@
 #include "SDL_events.h"
 #include "SDL_keycode.h"
 #include "SDL_log.h"
+#include "SDL_rect.h"
 #include "SDL_render.h"
 #include "SDL_timer.h"
 #include "SDL_video.h"
+
+color_t get_color(u32 color) {
+        const u8 red = (color >> 24) & 0xFF;
+        const u8 green = (color >> 16) & 0xFF;
+        const u8 blue = (color >> 8) & 0xFF;
+        const u8 alpha = (color >> 0) & 0xFF;
+
+        color_t cor = {
+            .red = red,
+            .blue = blue,
+            .green = green,
+            .alpha = alpha,
+        };
+        return cor;
+}
 
 bool init_sdl(sdl_t *sdl, const config_t config) {
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
@@ -134,16 +150,44 @@ void fin_cleanup(const sdl_t sdl) {
 }
 
 void clear_screen(const config_t config, const sdl_t sdl) {
-        const u8 red = (config.bg_color >> 24) & 0xFF;
-        const u8 green = (config.bg_color >> 16) & 0xFF;
-        const u8 blue = (config.bg_color >> 8) & 0xFF;
-        const u8 alpha = (config.bg_color >> 0) & 0xFF;
+        color_t cor = get_color(config.bg_color);
 
-        SDL_SetRenderDrawColor(sdl.renderer, red, green, blue, alpha);
+        SDL_SetRenderDrawColor(
+            sdl.renderer, cor.red, cor.green, cor.blue, cor.alpha);
         SDL_RenderClear(sdl.renderer);
 }
 
-void update_screen(const sdl_t sdl) {
+void update_screen(
+    const sdl_t sdl, const config_t config, const chip8_t chip8) {
+        SDL_Rect rect = {
+            .x = 0, .y = 0, .w = config.scale_factor, .h = config.scale_factor};
+        color_t fg_color = get_color(config.fg_color);
+        color_t bg_color = get_color(config.bg_color);
+
+        for (u32 row = 0; row < sizeof chip8.display; row++) {
+                rect.x = (int)(row % config.window_width) * config.scale_factor;
+                rect.y = (int)(row / config.window_width) * config.scale_factor;
+
+                if (chip8.display[row]) {
+                        SDL_SetRenderDrawColor(
+                            sdl.renderer,
+                            fg_color.red,
+                            fg_color.green,
+                            fg_color.blue,
+                            fg_color.alpha);
+                        SDL_RenderFillRect(sdl.renderer, &rect);
+                        continue;
+                }
+
+                SDL_SetRenderDrawColor(
+                    sdl.renderer,
+                    bg_color.red,
+                    bg_color.green,
+                    bg_color.blue,
+                    bg_color.alpha);
+                SDL_RenderFillRect(sdl.renderer, &rect);
+        }
+
         SDL_RenderPresent(sdl.renderer);
 }
 
@@ -198,7 +242,7 @@ void emulate_instruction(chip8_t *chip8) {
         u8 op_high_nibble = (chip8->inst.opcode >> (byte + 4)) & mask;
         instruction_handler_t handler = instruction_table[op_high_nibble];
         if (!handler) {
-		DEBUG_LOG("\n");
+                DEBUG_LOG("\n");
                 SDL_Log(
                     "Unimplemented instruction: 0x%04X", chip8->inst.opcode);
 
@@ -252,7 +296,7 @@ int main(int argc, char *argv[]) {
                 emulate_instruction(&chip8);
 
                 SDL_Delay(TIMER_DELAY_MS);  // TIMER_DELAY_MS - dt (delta time)
-                update_screen(sdl);
+                update_screen(sdl, conf, chip8);
         }
 
         fin_cleanup(sdl);
