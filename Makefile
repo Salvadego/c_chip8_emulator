@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Werror -Wextra -std=c99 -I/usr/include/SDL2 -D_REENTRANT -lSDL2
+CFLAGS = -Wall -Werror -Wextra -std=c99 -lraylib -lm -ldl -lpthread -lGL
 TARGET_DIR = bin
 TARGET = $(TARGET_DIR)/chip8
 SRC = ./src/main.c

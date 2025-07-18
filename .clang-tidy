@@ -1,0 +1,3 @@
+CheckOptions:
+  - key: readability-identifier-length.MinimumVariableNameLength
+    value: 2

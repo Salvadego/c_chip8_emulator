@@ -1,4 +1,4 @@
-#include <SDL2/SDL.h>
+#include <raylib.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,58 +7,16 @@
 #include <unistd.h>
 
 #include "../utils/types.h"
-#include "SDL_error.h"
-#include "SDL_events.h"
-#include "SDL_keycode.h"
-#include "SDL_log.h"
-#include "SDL_rect.h"
-#include "SDL_render.h"
-#include "SDL_timer.h"
-#include "SDL_video.h"
 
-color_t get_color(u32 color) {
-        const u8 red = (color >> 24) & 0xFF;
-        const u8 green = (color >> 16) & 0xFF;
-        const u8 blue = (color >> 8) & 0xFF;
-        const u8 alpha = (color >> 0) & 0xFF;
+#define TARGET_FPS 60
+#define SECOND 1000.0f
 
-        color_t cor = {
-            .red = red,
-            .blue = blue,
-            .green = green,
-            .alpha = alpha,
-        };
-        return cor;
-}
-
-bool init_sdl(sdl_t *sdl, const config_t config) {
-        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0) {
-                SDL_Log(
-                    "Could not initalize SDL subsystems! %s\n", SDL_GetError());
-                return false;
-        };
-
-        sdl->window = SDL_CreateWindow(
-            "Chip8 Emulator",
-            SDL_WINDOWPOS_CENTERED,
-            SDL_WINDOWPOS_CENTERED,
+bool init_raylib(config_t config) {
+        InitWindow(
             config.window_width * config.scale_factor,
             config.window_height * config.scale_factor,
-            0);
-
-        if (!sdl->window) {
-                SDL_Log("Could not create SDL Window: %s", SDL_GetError());
-                return false;
-        }
-
-        sdl->renderer =
-            SDL_CreateRenderer(sdl->window, -1, SDL_RENDERER_ACCELERATED);
-
-        if (!sdl->renderer) {
-                SDL_Log("Could not create SDL Renderer: %s", SDL_GetError());
-                return false;
-        }
-
+            "Chip8 Emulator");
+        SetTargetFPS(TARGET_FPS);
         return true;
 }
 
@@ -104,24 +62,28 @@ bool init_chip8(chip8_t *chip8, const char rom_name[]) {
 
         FILE *rom = fopen(rom_name, "rb");
         if (!rom) {
-                SDL_Log(
-                    "Rom file %s is invalid or does not exist...\n", rom_name);
+                TraceLog(
+                    LOG_ERROR,
+                    "Rom file %s is invalid or does not exist...",
+                    rom_name);
                 return false;
         }
         if (fseek(rom, 0, SEEK_END) != 0) {
-                SDL_Log("Couldn't move cursor to end of file\n");
+                TraceLog(LOG_ERROR, "Couldn't move cursor to end of file\n");
                 return false;
         };
 
         const size_t rom_size = ftell(rom);
         const size_t max_size = sizeof(chip8->ram) - entry_point;
         if (fseek(rom, 0, SEEK_SET) != 0) {
-                SDL_Log("Couldn't move cursor to beggining of file\n");
+                TraceLog(
+                    LOG_ERROR, "Couldn't move cursor to beginning of file\n");
                 return false;
         }
 
         if (rom_size > max_size) {
-                SDL_Log(
+                TraceLog(
+                    LOG_ERROR,
                     "Rom file %s is too big for this chip8, max size: %zu",
                     rom_name,
                     max_size);
@@ -129,12 +91,12 @@ bool init_chip8(chip8_t *chip8, const char rom_name[]) {
         }
 
         if (fread(&chip8->ram[entry_point], rom_size, 1, rom) != 1) {
-                SDL_Log("Couldn't read rom: %s, into ram\n", rom_name);
+                TraceLog(
+                    LOG_ERROR, "Couldn't read rom: %s, into ram\n", rom_name);
                 return false;
         }
         fclose(rom);
 
-        // defaults
         chip8->state = RUNNING;
         chip8->stack_ptr = &chip8->stack[0];
         chip8->PC = entry_point;
@@ -143,88 +105,48 @@ bool init_chip8(chip8_t *chip8, const char rom_name[]) {
         return true;
 }
 
-void fin_cleanup(const sdl_t sdl) {
-        SDL_DestroyRenderer(sdl.renderer);
-        SDL_DestroyWindow(sdl.window);
-        SDL_Quit();
+void fin_cleanup() {
+        CloseWindow();
 }
 
-void clear_screen(const config_t config, const sdl_t sdl) {
-        color_t cor = get_color(config.bg_color);
-
-        SDL_SetRenderDrawColor(
-            sdl.renderer, cor.red, cor.green, cor.blue, cor.alpha);
-        SDL_RenderClear(sdl.renderer);
+void clear_screen(const config_t config) {
+        ClearBackground(*(Color *)&config.bg_color);
 }
 
-void update_screen(
-    const sdl_t sdl, const config_t config, const chip8_t chip8) {
-        SDL_Rect rect = {
-            .x = 0, .y = 0, .w = config.scale_factor, .h = config.scale_factor};
-        color_t fg_color = get_color(config.fg_color);
-        color_t bg_color = get_color(config.bg_color);
+void update_screen(const config_t config, const chip8_t chip8) {
+        BeginDrawing();
+        clear_screen(config);
+
+        Color fg_ray_color = *(Color *)&config.fg_color;
 
         for (u32 row = 0; row < sizeof chip8.display; row++) {
-                rect.x = (int)(row % config.window_width) * config.scale_factor;
-                rect.y = (int)(row / config.window_width) * config.scale_factor;
-
                 if (chip8.display[row]) {
-                        SDL_SetRenderDrawColor(
-                            sdl.renderer,
-                            fg_color.red,
-                            fg_color.green,
-                            fg_color.blue,
-                            fg_color.alpha);
-                        SDL_RenderFillRect(sdl.renderer, &rect);
-                        continue;
+                        DrawRectangle(
+                            (int)(row % config.window_width) *
+                                config.scale_factor,
+                            (int)(row / config.window_width) *
+                                config.scale_factor,
+                            config.scale_factor,
+                            config.scale_factor,
+                            fg_ray_color);
                 }
-
-                SDL_SetRenderDrawColor(
-                    sdl.renderer,
-                    bg_color.red,
-                    bg_color.green,
-                    bg_color.blue,
-                    bg_color.alpha);
-                SDL_RenderFillRect(sdl.renderer, &rect);
         }
-
-        SDL_RenderPresent(sdl.renderer);
+        EndDrawing();
 }
 
-void handle_events(SDL_Event event, chip8_t *chip8) {
-        switch (event.type) {
-                case SDL_QUIT:
-                        chip8->state = QUIT;
-                        return;
-                case SDL_KEYDOWN:
-                        DEBUG_LOG(
-                            "Keydown %d: | State: %d | Mods: %d\n",
-                            event.key.keysym.sym,
-                            event.key.state,
-                            event.key.keysym.mod);
-                        switch (event.key.keysym.sym) {
-                                case SDLK_ESCAPE:
-                                        chip8->state = QUIT;
-                                        return;
-                                case SDLK_SPACE:
-                                        chip8->state = chip8->state == RUNNING
-                                                           ? PAUSED
-                                                           : RUNNING;
-                                        return;
-                                default:
-                                        return;
-                        }
-                case SDL_KEYUP:
-                default:
-                        return;
+void handle_input_raylib(chip8_t *chip8) {
+        if (WindowShouldClose()) {
+                chip8->state = QUIT;
+                return;
         }
-}
 
-void handle_input(chip8_t *chip8) {
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-                handle_events(event, chip8);
-                break;
+        if (IsKeyPressed(KEY_ESCAPE)) {
+                chip8->state = QUIT;
+                return;
+        }
+        if (IsKeyPressed(KEY_SPACE)) {
+                chip8->state = chip8->state == RUNNING ? PAUSED : RUNNING;
+                return;
         }
 }
 
@@ -243,8 +165,10 @@ void emulate_instruction(chip8_t *chip8) {
         instruction_handler_t handler = instruction_table[op_high_nibble];
         if (!handler) {
                 DEBUG_LOG("\n");
-                SDL_Log(
-                    "Unimplemented instruction: 0x%04X", chip8->inst.opcode);
+                TraceLog(
+                    LOG_ERROR,
+                    "Unimplemented instruction: 0x%04X",
+                    chip8->inst.opcode);
 
 #ifndef DEBUG
                 chip8->state = QUIT;
@@ -266,22 +190,22 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
         }
 
-        sdl_t sdl = {0};
-        if (!init_sdl(&sdl, conf)) {
+        if (!init_raylib(conf)) {
                 exit(EXIT_FAILURE);
         }
 
         chip8_t chip8 = {0};
         const char *rom_name = argv[1];
         if (!init_chip8(&chip8, rom_name)) {
+                fin_cleanup();
                 exit(EXIT_FAILURE);
         }
 
-        clear_screen(conf, sdl);
+        clear_screen(conf);
 
         emulator_state_t curr_state = chip8.state;
         while (chip8.state != QUIT) {
-                handle_input(&chip8);
+                handle_input_raylib(&chip8);
                 if (chip8.state != curr_state) {
                         curr_state = chip8.state;
                         DEBUG_LOG(
@@ -295,10 +219,11 @@ int main(int argc, char *argv[]) {
 
                 emulate_instruction(&chip8);
 
-                SDL_Delay(TIMER_DELAY_MS);  // TIMER_DELAY_MS - dt (delta time)
-                update_screen(sdl, conf, chip8);
+                WaitTime(TIMER_DELAY_MS / SECOND);
+
+                update_screen(conf, chip8);
         }
 
-        fin_cleanup(sdl);
+        fin_cleanup();
         exit(EXIT_SUCCESS);
 }

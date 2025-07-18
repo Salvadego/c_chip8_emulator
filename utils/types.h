@@ -1,5 +1,8 @@
-#include <SDL2/SDL.h>
+#include <raylib.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 
 #ifdef DEBUG
@@ -13,20 +16,50 @@
 #define TIMER_DELAY_MS 16
 #define SCALE_FACTOR 20
 
-#define WHITE 0xFFFFFFFF
-#define GREEN 0x55FF55FF
-#define BLACK 0x000000FF
-
 #define DISLPAY_SIZE 64 * 32
 #define STACK_SIZE 12
 #define REGISTERS_SIZE 16
+#define VF_REGISTER 0xF
 #define KEYPAD_SIZE 16
+#define SPRITE_WIDTH 8
+
+#define FONT_CHAR_SIZE 5
+#define FONT_START_ADDRESS 0
 
 #define Byte(a) (a * 1)
 #define Kilobytes(a) (a * Byte(1024))
 
 #define CLEAR_OPCODE 0x00E0
 #define RETURN_OPCODE 0x00EE
+
+#define OPCODE_8XY0 0x0000
+#define OPCODE_8XY1 0x0001
+#define OPCODE_8XY2 0x0002
+#define OPCODE_8XY3 0x0003
+#define OPCODE_8XY4 0x0004
+#define OPCODE_8XY5 0x0005
+#define OPCODE_8XY6 0x0006
+#define OPCODE_8XY7 0x0007
+#define OPCODE_8XYE 0x000E
+
+#define OPCODE_EX9E 0x009E
+#define OPCODE_EXA1 0x00A1
+
+#define OPCODE_FX07 0x0007
+#define OPCODE_FX0A 0x000A
+#define OPCODE_FX15 0x0015
+#define OPCODE_FX18 0x0018
+#define OPCODE_FX1E 0x001E
+#define OPCODE_FX29 0x0029
+#define OPCODE_FX33 0x0033
+#define OPCODE_FX55 0x0055
+#define OPCODE_FX65 0x0065
+
+#define HUNDREDS 100
+#define TENS 10
+
+#define MSB_MASK 0x80
+#define MSB_SHIFT 7
 
 typedef u_int8_t u8;
 typedef u_int16_t u16;
@@ -37,12 +70,6 @@ typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
-
-// SDL container.
-typedef struct {
-        SDL_Window *window;
-        SDL_Renderer *renderer;
-} sdl_t;
 
 typedef struct {
         u8 red;
@@ -57,8 +84,8 @@ typedef struct {
         i32 window_height;
         i32 scale_factor;
 
-        u32 fg_color;  // RGBA8888
-        u32 bg_color;  // RGBA8888
+        Color fg_color;  // RGBA8888
+        Color bg_color;  // RGBA8888
 } config_t;
 
 // Emulator State
@@ -134,6 +161,38 @@ typedef enum {
         INST_F,
         INST_COUNT
 } instruction_id_t;
+
+typedef enum {
+        INST_8XY0,
+        INST_8XY1,
+        INST_8XY2,
+        INST_8XY3,
+        INST_8XY4,
+        INST_8XY5,
+        INST_8XY6,
+        INST_8XY7,
+        INST_8XYE,
+        INST_8_COUNT
+} instruction_8_id_t;
+
+typedef enum {
+        INST_EX9E,
+        INST_EXA1,
+        INST_E_COUNT,
+} instruction_E_id_t;
+
+typedef enum {
+        INST_FX07,
+        INST_FX0A,
+        INST_FX15,
+        INST_FX18,
+        INST_FX1E,
+        INST_FX29,
+        INST_FX33,
+        INST_FX55,
+        INST_FX65,
+        INST_F_COUNT
+} instruction_F_id_t;
 
 // Chip8
 typedef struct {
@@ -220,12 +279,12 @@ void inst_DXYN(chip8_t *chip8) {
         const u8 dxc = chip8->V[X_CORD] % CHIP_WIDTH;
         const u8 dyc = chip8->V[Y_CORD] % CHIP_HEIGHT;
 
-        chip8->V[0xF] = 0;  // NOLINT
+        chip8->V[VF_REGISTER] = 0;
 
         for (u8 row = 0; row < nibble; row++) {
                 const u8 sprite = chip8->ram[chip8->I + row];
 
-                for (u8 col = 0; col < 8; col++) {  // NOLINT
+                for (u8 col = 0; col < SPRITE_WIDTH; col++) {
                         const u8 sprite_pixel = (sprite >> (7 - col)) & 0x1;
                         if ((dyc + row) >= CHIP_HEIGHT ||
                             (dxc + col) >= CHIP_WIDTH) {
@@ -236,7 +295,7 @@ void inst_DXYN(chip8_t *chip8) {
 
                         if (sprite_pixel) {
                                 if (chip8->display[display_index]) {
-                                        chip8->V[0xF] = 1;  // NOLINT
+                                        chip8->V[VF_REGISTER] = 1;
                                 }
                                 chip8->display[display_index] ^= 1;
                         }
@@ -259,7 +318,7 @@ void dispatch_zero_family(chip8_t *chip8) {
                         inst_00EE(chip8);
                         break;
                 default:
-                        SDL_Log(
+                        DEBUG_LOG(
                             "Unknown 0x0-family instruction: 0x%04X",
                             chip8->inst.opcode);
                         chip8->state = QUIT;
@@ -267,13 +326,263 @@ void dispatch_zero_family(chip8_t *chip8) {
         }
 }
 
-const instruction_handler_t instruction_table[INST_COUNT] = {
+void inst_4XNN(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_byte.Vx;
+        const u8 byte = chip8->inst.reg_byte.KK;
+        if (chip8->V[Vx] != byte) {
+                chip8->PC += 2;
+        }
+}
+
+void inst_5XY0(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_reg.Vx;
+        const u8 Vy = chip8->inst.reg_reg.Vy;
+        if (chip8->V[Vx] == chip8->V[Vy]) {
+                chip8->PC += 2;
+        }
+}
+
+void inst_8XY0(chip8_t *chip8) {
+        chip8->V[chip8->inst.reg_reg.Vx] = chip8->V[chip8->inst.reg_reg.Vy];
+}
+
+void inst_8XY1(chip8_t *chip8) {
+        chip8->V[chip8->inst.reg_reg.Vx] |= chip8->V[chip8->inst.reg_reg.Vy];
+}
+
+void inst_8XY2(chip8_t *chip8) {
+        chip8->V[chip8->inst.reg_reg.Vx] &= chip8->V[chip8->inst.reg_reg.Vy];
+}
+
+void inst_8XY3(chip8_t *chip8) {
+        chip8->V[chip8->inst.reg_reg.Vx] ^= chip8->V[chip8->inst.reg_reg.Vy];
+}
+
+void inst_8XY4(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_reg.Vx;
+        const u8 Vy = chip8->inst.reg_reg.Vy;
+        const u16 sum = chip8->V[Vx] + chip8->V[Vy];
+        chip8->V[VF_REGISTER] = (sum > REGISTERS_SIZE);
+        chip8->V[Vx] = sum & REGISTERS_SIZE;
+}
+
+void inst_8XY5(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_reg.Vx;
+        const u8 Vy = chip8->inst.reg_reg.Vy;
+        chip8->V[VF_REGISTER] = (chip8->V[Vx] > chip8->V[Vy]);
+        chip8->V[Vx] -= chip8->V[Vy];
+}
+
+void inst_8XY6(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_reg.Vx;
+        chip8->V[VF_REGISTER] = chip8->V[Vx] & 0x1;
+        chip8->V[Vx] >>= 1;
+}
+
+void inst_8XY7(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_reg.Vx;
+        const u8 Vy = chip8->inst.reg_reg.Vy;
+        chip8->V[VF_REGISTER] = (chip8->V[Vy] > chip8->V[Vx]);
+        chip8->V[Vx] = chip8->V[Vy] - chip8->V[Vx];
+}
+
+void inst_8XYE(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_reg.Vx;
+        chip8->V[VF_REGISTER] = (chip8->V[Vx] & MSB_MASK) >> MSB_SHIFT;
+        chip8->V[Vx] <<= 1;
+}
+
+void inst_9XY0(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_reg.Vx;
+        const u8 Vy = chip8->inst.reg_reg.Vy;
+        if (chip8->V[Vx] != chip8->V[Vy]) {
+                chip8->PC += 2;
+        }
+}
+
+void inst_BNNN(chip8_t *chip8) {
+        chip8->PC = chip8->inst.addr.NNN + chip8->V[0];
+}
+
+void inst_CXNN(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_byte.Vx;
+        const u8 KK = chip8->inst.reg_byte.KK;
+        chip8->V[Vx] = (rand() & REGISTERS_SIZE) & KK;
+}
+
+void inst_EX9E(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_byte.Vx;
+        if (chip8->keypad[chip8->V[Vx]]) {
+                chip8->PC += 2;
+        }
+}
+
+void inst_EXA1(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_byte.Vx;
+        if (!chip8->keypad[chip8->V[Vx]]) {
+                chip8->PC += 2;
+        }
+}
+
+void inst_FX07(chip8_t *chip8) {
+        chip8->V[chip8->inst.reg_byte.Vx] = chip8->delay_timer;
+}
+
+void inst_FX0A(chip8_t *chip8) {
+        for (u8 i = 0; i < KEYPAD_SIZE; ++i) {
+                if (chip8->keypad[i]) {
+                        chip8->V[chip8->inst.reg_byte.Vx] = i;
+                        return;
+                }
+        }
+        chip8->PC -= 2;
+}
+
+void inst_FX15(chip8_t *chip8) {
+        chip8->delay_timer = chip8->V[chip8->inst.reg_byte.Vx];
+}
+
+void inst_FX18(chip8_t *chip8) {
+        chip8->sound_timer = chip8->V[chip8->inst.reg_byte.Vx];
+}
+
+void inst_FX1E(chip8_t *chip8) {
+        chip8->I += chip8->V[chip8->inst.reg_byte.Vx];
+}
+
+void inst_FX29(chip8_t *chip8) {
+        chip8->I = 0 + (chip8->V[chip8->inst.reg_byte.Vx] * FONT_CHAR_SIZE);
+}
+
+void inst_FX33(chip8_t *chip8) {
+        const u8 val = chip8->V[chip8->inst.reg_byte.Vx];
+        chip8->ram[chip8->I] = val / HUNDREDS;
+        chip8->ram[chip8->I + 1] = (val / TENS) % TENS;
+        chip8->ram[chip8->I + 2] = val % TENS;
+}
+
+void inst_FX55(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_byte.Vx;
+        for (u8 i = 0; i <= Vx; ++i) {
+                chip8->ram[chip8->I + i] = chip8->V[i];
+        }
+}
+
+void inst_FX65(chip8_t *chip8) {
+        const u8 Vx = chip8->inst.reg_byte.Vx;
+        for (u8 i = 0; i <= Vx; ++i) {
+                chip8->V[i] = chip8->ram[chip8->I + i];
+        }
+}
+
+void dispatch_eight_family(chip8_t *chip8) {
+        switch (chip8->inst.opcode & 0x000F) {  // NOLINT
+                case OPCODE_8XY0:
+                        inst_8XY0(chip8);
+                        break;
+                case OPCODE_8XY1:
+                        inst_8XY1(chip8);
+                        break;
+                case OPCODE_8XY2:
+                        inst_8XY2(chip8);
+                        break;
+                case OPCODE_8XY3:
+                        inst_8XY3(chip8);
+                        break;
+                case OPCODE_8XY4:
+                        inst_8XY4(chip8);
+                        break;
+                case OPCODE_8XY5:
+                        inst_8XY5(chip8);
+                        break;
+                case OPCODE_8XY6:
+                        inst_8XY6(chip8);
+                        break;
+                case OPCODE_8XY7:
+                        inst_8XY7(chip8);
+                        break;
+                case OPCODE_8XYE:
+                        inst_8XYE(chip8);
+                        break;
+                default:
+                        DEBUG_LOG(
+                            "Unknown 0x8-family instruction: 0x%04X",
+                            chip8->inst.opcode);
+                        chip8->state = QUIT;
+                        break;
+        }
+}
+
+void dispatch_E_family(chip8_t *chip8) {
+        switch (chip8->inst.opcode & 0x00FF) {  // NOLINT
+                case OPCODE_EX9E:
+                        inst_EX9E(chip8);
+                        break;
+                case OPCODE_EXA1:
+                        inst_EXA1(chip8);
+                        break;
+                default:
+                        DEBUG_LOG(
+                            "Unknown 0xE-family instruction: 0x%04X",
+                            chip8->inst.opcode);
+                        chip8->state = QUIT;
+                        break;
+        }
+}
+
+void dispatch_F_family(chip8_t *chip8) {
+        switch (chip8->inst.opcode & 0x00FF) {  // NOLINT
+                case OPCODE_FX07:
+                        inst_FX07(chip8);
+                        break;
+                case OPCODE_FX0A:
+                        inst_FX0A(chip8);
+                        break;
+                case OPCODE_FX15:
+                        inst_FX15(chip8);
+                        break;
+                case OPCODE_FX18:
+                        inst_FX18(chip8);
+                        break;
+                case OPCODE_FX1E:
+                        inst_FX1E(chip8);
+                        break;
+                case OPCODE_FX29:
+                        inst_FX29(chip8);
+                        break;
+                case OPCODE_FX33:
+                        inst_FX33(chip8);
+                        break;
+                case OPCODE_FX55:
+                        inst_FX55(chip8);
+                        break;
+                case OPCODE_FX65:
+                        inst_FX65(chip8);
+                        break;
+                default:
+                        DEBUG_LOG(
+                            "Unknown 0xF-family instruction: 0x%04X",
+                            chip8->inst.opcode);
+                        chip8->state = QUIT;
+                        break;
+        }
+}
+
+static const instruction_handler_t instruction_table[INST_COUNT] = {
     [INST_0] = dispatch_zero_family,
     [INST_1] = inst_1NNN,
     [INST_2] = inst_2NNN,
     [INST_3] = inst_3XNN,
+    [INST_4] = inst_4XNN,
+    [INST_5] = inst_5XY0,
     [INST_6] = inst_6XNN,
     [INST_7] = inst_7XNN,
+    [INST_8] = dispatch_eight_family,
+    [INST_9] = inst_9XY0,
     [INST_A] = inst_ANNN,
+    [INST_B] = inst_BNNN,
+    [INST_C] = inst_CXNN,
     [INST_D] = inst_DXYN,
+    [INST_E] = dispatch_E_family,
+    [INST_F] = dispatch_F_family,
 };
