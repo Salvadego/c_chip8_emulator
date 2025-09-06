@@ -148,6 +148,30 @@ void handle_input_raylib(chip8_t *chip8) {
                 chip8->state = chip8->state == RUNNING ? PAUSED : RUNNING;
                 return;
         }
+
+        // Zera estado anterior
+        memset(chip8->keypad, 0, sizeof(chip8->keypad));
+
+        // Atualiza estado atual
+        chip8->keypad[0x1] = IsKeyDown(KEY_ONE);
+        chip8->keypad[0x2] = IsKeyDown(KEY_TWO);
+        chip8->keypad[0x3] = IsKeyDown(KEY_THREE);
+        chip8->keypad[0xC] = IsKeyDown(KEY_FOUR);
+
+        chip8->keypad[0x4] = IsKeyDown(KEY_Q);
+        chip8->keypad[0x5] = IsKeyDown(KEY_W);
+        chip8->keypad[0x6] = IsKeyDown(KEY_E);
+        chip8->keypad[0xD] = IsKeyDown(KEY_R);
+
+        chip8->keypad[0x7] = IsKeyDown(KEY_A);
+        chip8->keypad[0x8] = IsKeyDown(KEY_S);
+        chip8->keypad[0x9] = IsKeyDown(KEY_D);
+        chip8->keypad[0xE] = IsKeyDown(KEY_F);
+
+        chip8->keypad[0xA] = IsKeyDown(KEY_Z);
+        chip8->keypad[0x0] = IsKeyDown(KEY_X);
+        chip8->keypad[0xB] = IsKeyDown(KEY_C);
+        chip8->keypad[0xF] = IsKeyDown(KEY_V);
 }
 
 void emulate_instruction(chip8_t *chip8) {
@@ -204,6 +228,7 @@ int main(int argc, char *argv[]) {
         clear_screen(conf);
 
         emulator_state_t curr_state = chip8.state;
+        static double last_time = 0;
         while (chip8.state != QUIT) {
                 handle_input_raylib(&chip8);
                 if (chip8.state != curr_state) {
@@ -217,10 +242,15 @@ int main(int argc, char *argv[]) {
                         continue;
                 }
 
-                emulate_instruction(&chip8);
+                for (int i = 0; i < INSTRUCTIONS_PER_FRAME; i++)
+                        emulate_instruction(&chip8);
 
-                WaitTime(TIMER_DELAY_MS / SECOND);
-
+                double now = GetTime();
+                if (now - last_time >= 1.0 / 60.0) {
+                        if (chip8.delay_timer > 0) chip8.delay_timer--;
+                        if (chip8.sound_timer > 0) chip8.sound_timer--;
+                        last_time = now;
+                }
                 update_screen(conf, chip8);
         }
 
