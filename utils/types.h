@@ -342,61 +342,70 @@ void inst_5XY0(chip8_t *chip8) {
         }
 }
 
-void inst_8XY0(chip8_t *chip8) {
-        chip8->V[chip8->inst.reg_reg.Vx] = chip8->V[chip8->inst.reg_reg.Vy];
+void inst_8XY0(chip8_t *c) {
+        u8 X = (c->inst.opcode >> 8) & 0xF;
+        u8 Y = (c->inst.opcode >> 4) & 0xF;
+        c->V[X] = c->V[Y];
 }
 
-void inst_8XY1(chip8_t *chip8) {
-        chip8->V[chip8->inst.reg_reg.Vx] |= chip8->V[chip8->inst.reg_reg.Vy];
+void inst_8XY1(chip8_t *c) {
+        u8 X = (c->inst.opcode >> 8) & 0xF;
+        u8 Y = (c->inst.opcode >> 4) & 0xF;
+        c->V[X] |= c->V[Y];
 }
 
-void inst_8XY2(chip8_t *chip8) {
-        chip8->V[chip8->inst.reg_reg.Vx] &= chip8->V[chip8->inst.reg_reg.Vy];
+void inst_8XY2(chip8_t *c) {
+        u8 X = (c->inst.opcode >> 8) & 0xF;
+        u8 Y = (c->inst.opcode >> 4) & 0xF;
+        c->V[X] &= c->V[Y];
 }
 
-void inst_8XY3(chip8_t *chip8) {
-        chip8->V[chip8->inst.reg_reg.Vx] ^= chip8->V[chip8->inst.reg_reg.Vy];
+void inst_8XY3(chip8_t *c) {
+        u8 X = (c->inst.opcode >> 8) & 0xF;
+        u8 Y = (c->inst.opcode >> 4) & 0xF;
+        c->V[X] ^= c->V[Y];
 }
 
-void inst_8XY4(chip8_t *chip8) {
-        const u8 Vx = chip8->inst.reg_reg.Vx;
-        const u8 Vy = chip8->inst.reg_reg.Vy;
-        const u16 sum = chip8->V[Vx] + chip8->V[Vy];
-        chip8->V[VF_REGISTER] = (sum > REGISTERS_SIZE);
-        chip8->V[Vx] = sum & REGISTERS_SIZE;
+void inst_8XY4(chip8_t *c) {
+        u8 X = (c->inst.opcode >> 8) & 0xF;
+        u8 Y = (c->inst.opcode >> 4) & 0xF;
+        u16 sum = c->V[X] + c->V[Y];
+        c->V[VF_REGISTER] = sum > 0xFF;  // Carry flag
+        c->V[X] = (u8)(sum & 0xFF);
 }
 
-void inst_8XY5(chip8_t *chip8) {
-        const u8 Vx = chip8->inst.reg_reg.Vx;
-        const u8 Vy = chip8->inst.reg_reg.Vy;
-        chip8->V[VF_REGISTER] = (chip8->V[Vx] > chip8->V[Vy]);
-        chip8->V[Vx] -= chip8->V[Vy];
+void inst_8XY5(chip8_t *c) {
+        u8 X = (c->inst.opcode >> 8) & 0xF;
+        u8 Y = (c->inst.opcode >> 4) & 0xF;
+        c->V[VF_REGISTER] = (c->V[X] >= c->V[Y]);  // borrow flag
+        c->V[X] -= c->V[Y];
 }
 
-void inst_8XY6(chip8_t *chip8) {
-        const u8 Vx = chip8->inst.reg_reg.Vx;
-        chip8->V[VF_REGISTER] = chip8->V[Vx] & 0x1;
-        chip8->V[Vx] >>= 1;
+void inst_8XY6(chip8_t *c) {
+        u8 X = (c->inst.opcode >> 8) & 0xF;
+        // Algumas versões usam Vy em vez de Vx, mas a mais comum é Vx.
+        c->V[VF_REGISTER] = c->V[X] & 0x1;  // LSB antes de shift
+        c->V[X] >>= 1;
 }
 
-void inst_8XY7(chip8_t *chip8) {
-        const u8 Vx = chip8->inst.reg_reg.Vx;
-        const u8 Vy = chip8->inst.reg_reg.Vy;
-        chip8->V[VF_REGISTER] = (chip8->V[Vy] > chip8->V[Vx]);
-        chip8->V[Vx] = chip8->V[Vy] - chip8->V[Vx];
+void inst_8XY7(chip8_t *c) {
+        u8 X = (c->inst.opcode >> 8) & 0xF;
+        u8 Y = (c->inst.opcode >> 4) & 0xF;
+        c->V[VF_REGISTER] = (c->V[Y] >= c->V[X]);  // borrow flag
+        c->V[X] = c->V[Y] - c->V[X];
 }
 
-void inst_8XYE(chip8_t *chip8) {
-        const u8 Vx = chip8->inst.reg_reg.Vx;
-        chip8->V[VF_REGISTER] = (chip8->V[Vx] & MSB_MASK) >> MSB_SHIFT;
-        chip8->V[Vx] <<= 1;
+void inst_8XYE(chip8_t *c) {
+        u8 X = (c->inst.opcode >> 8) & 0xF;
+        c->V[VF_REGISTER] = (c->V[X] & 0x80) >> 7;  // MSB antes do shift
+        c->V[X] <<= 1;
 }
 
-void inst_9XY0(chip8_t *chip8) {
-        const u8 Vx = chip8->inst.reg_reg.Vx;
-        const u8 Vy = chip8->inst.reg_reg.Vy;
-        if (chip8->V[Vx] != chip8->V[Vy]) {
-                chip8->PC += 2;
+void inst_9XY0(chip8_t *c) {
+        u8 X = (c->inst.opcode >> 8) & 0xF;
+        u8 Y = (c->inst.opcode >> 4) & 0xF;
+        if (c->V[X] != c->V[Y]) {
+                c->PC += 2;
         }
 }
 
