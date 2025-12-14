@@ -9,22 +9,21 @@
 #include "../utils/types.h"
 
 #define TARGET_FPS 60
-#define SECOND 1000.0f
+#define SECOND     1000.0f
 
 bool init_raylib(config_t config) {
-        InitWindow(
-            config.window_width * config.scale_factor,
-            config.window_height * config.scale_factor,
-            "Chip8 Emulator");
+        InitWindow(config.window_width * config.scale_factor,
+                   config.window_height * config.scale_factor,
+                   "Chip8 Emulator");
         SetTargetFPS(TARGET_FPS);
         return true;
 }
 
-bool set_config_from_args(config_t *config, const int argc, char **argv) {
+bool set_config_from_args(config_t* config, const int argc, char** argv) {
         *config = (config_t){
-            .window_width = CHIP_WIDTH,
+            .window_width  = CHIP_WIDTH,
             .window_height = CHIP_HEIGHT,
-            .scale_factor = SCALE_FACTOR,
+            .scale_factor  = SCALE_FACTOR,
 
             .fg_color = GREEN,
             .bg_color = BLACK,
@@ -37,9 +36,9 @@ bool set_config_from_args(config_t *config, const int argc, char **argv) {
         return true;
 }
 
-bool init_chip8(chip8_t *chip8, const char rom_name[]) {
+bool init_chip8(chip8_t* chip8, const char rom_name[]) {
         const u32 entry_point = 0x200;
-        const u8 font[] = {
+        const u8  font[]      = {
             0xF0, 0x90, 0x90, 0x90, 0xF0,  // 0
             0x20, 0x60, 0x20, 0x20, 0x70,  // 1
             0xF0, 0x10, 0xF0, 0x80, 0xF0,  // 2
@@ -60,12 +59,11 @@ bool init_chip8(chip8_t *chip8, const char rom_name[]) {
 
         memcpy(&chip8->ram[0], font, sizeof(font));
 
-        FILE *rom = fopen(rom_name, "rb");
+        FILE* rom = fopen(rom_name, "rb");
         if (!rom) {
-                TraceLog(
-                    LOG_ERROR,
-                    "Rom file %s is invalid or does not exist...",
-                    rom_name);
+                TraceLog(LOG_ERROR,
+                         "Rom file %s is invalid or does not exist...",
+                         rom_name);
                 return false;
         }
         if (fseek(rom, 0, SEEK_END) != 0) {
@@ -76,17 +74,16 @@ bool init_chip8(chip8_t *chip8, const char rom_name[]) {
         const size_t rom_size = ftell(rom);
         const size_t max_size = sizeof(chip8->ram) - entry_point;
         if (fseek(rom, 0, SEEK_SET) != 0) {
-                TraceLog(
-                    LOG_ERROR, "Couldn't move cursor to beginning of file\n");
+                TraceLog(LOG_ERROR,
+                         "Couldn't move cursor to beginning of file\n");
                 return false;
         }
 
         if (rom_size > max_size) {
-                TraceLog(
-                    LOG_ERROR,
-                    "Rom file %s is too big for this chip8, max size: %zu",
-                    rom_name,
-                    max_size);
+                TraceLog(LOG_ERROR,
+                         "Rom file %s is too big for this chip8, max size: %zu",
+                         rom_name,
+                         max_size);
                 return false;
         }
 
@@ -97,10 +94,10 @@ bool init_chip8(chip8_t *chip8, const char rom_name[]) {
         }
         fclose(rom);
 
-        chip8->state = RUNNING;
+        chip8->state     = RUNNING;
         chip8->stack_ptr = &chip8->stack[0];
-        chip8->PC = entry_point;
-        chip8->rom_name = rom_name;
+        chip8->PC        = entry_point;
+        chip8->rom_name  = rom_name;
 
         return true;
 }
@@ -110,31 +107,30 @@ void fin_cleanup() {
 }
 
 void clear_screen(const config_t config) {
-        ClearBackground(*(Color *)&config.bg_color);
+        ClearBackground(*(Color*)&config.bg_color);
 }
 
 void update_screen(const config_t config, const chip8_t chip8) {
         BeginDrawing();
         clear_screen(config);
 
-        Color fg_ray_color = *(Color *)&config.fg_color;
+        Color fg_ray_color = *(Color*)&config.fg_color;
 
         for (u32 row = 0; row < sizeof chip8.display; row++) {
                 if (chip8.display[row]) {
-                        DrawRectangle(
-                            (int)(row % config.window_width) *
-                                config.scale_factor,
-                            (int)(row / config.window_width) *
-                                config.scale_factor,
-                            config.scale_factor,
-                            config.scale_factor,
-                            fg_ray_color);
+                        DrawRectangle((int)(row % config.window_width) *
+                                          config.scale_factor,
+                                      (int)(row / config.window_width) *
+                                          config.scale_factor,
+                                      config.scale_factor,
+                                      config.scale_factor,
+                                      fg_ray_color);
                 }
         }
         EndDrawing();
 }
 
-void handle_input_raylib(chip8_t *chip8) {
+void handle_input_raylib(chip8_t* chip8) {
         if (WindowShouldClose()) {
                 chip8->state = QUIT;
                 return;
@@ -174,11 +170,11 @@ void handle_input_raylib(chip8_t *chip8) {
         chip8->keypad[0xF] = IsKeyDown(KEY_V);
 }
 
-void emulate_instruction(chip8_t *chip8) {
-        const u8 byte = 8;
-        const u8 mask = 0xF;
-        const u8 high = chip8->ram[chip8->PC];
-        const u8 low = chip8->ram[chip8->PC + 1];
+void emulate_instruction(chip8_t* chip8) {
+        const u8 byte      = 8;
+        const u8 mask      = 0xF;
+        const u8 high      = chip8->ram[chip8->PC];
+        const u8 low       = chip8->ram[chip8->PC + 1];
         chip8->inst.opcode = (high << byte) | low;
         chip8->PC += 2;
 
@@ -189,10 +185,9 @@ void emulate_instruction(chip8_t *chip8) {
         instruction_handler_t handler = instruction_table[op_high_nibble];
         if (!handler) {
                 DEBUG_LOG("\n");
-                TraceLog(
-                    LOG_ERROR,
-                    "Unimplemented instruction: 0x%04X",
-                    chip8->inst.opcode);
+                TraceLog(LOG_ERROR,
+                         "Unimplemented instruction: 0x%04X",
+                         chip8->inst.opcode);
 
 #ifndef DEBUG
                 chip8->state = QUIT;
@@ -203,7 +198,7 @@ void emulate_instruction(chip8_t *chip8) {
         handler(chip8);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
         if (argc < 2) {
                 fprintf(stderr, "Usage: %s <rom_file>\n", argv[0]);
                 exit(EXIT_FAILURE);
@@ -218,8 +213,8 @@ int main(int argc, char *argv[]) {
                 exit(EXIT_FAILURE);
         }
 
-        chip8_t chip8 = {0};
-        const char *rom_name = argv[1];
+        chip8_t     chip8    = {0};
+        const char* rom_name = argv[1];
         if (!init_chip8(&chip8, rom_name)) {
                 fin_cleanup();
                 exit(EXIT_FAILURE);
@@ -228,14 +223,13 @@ int main(int argc, char *argv[]) {
         clear_screen(conf);
 
         emulator_state_t curr_state = chip8.state;
-        static double last_time = 0;
+        static double    last_time  = 0;
         while (chip8.state != QUIT) {
                 handle_input_raylib(&chip8);
                 if (chip8.state != curr_state) {
                         curr_state = chip8.state;
-                        DEBUG_LOG(
-                            "Changed State: %s\n",
-                            enum_state_lookup[curr_state]);
+                        DEBUG_LOG("Changed State: %s\n",
+                                  enum_state_lookup[curr_state]);
                 }
 
                 if (chip8.state == PAUSED) {

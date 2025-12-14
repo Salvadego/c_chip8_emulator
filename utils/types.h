@@ -6,31 +6,31 @@
 #include <sys/types.h>
 
 #ifdef DEBUG
-#define DEBUG_LOG(...) printf(__VA_ARGS__)
+#        define DEBUG_LOG(...) printf(__VA_ARGS__)
 #else
-#define DEBUG_LOG(...) ((void)0)
+#        define DEBUG_LOG(...) ((void)0)
 #endif
 
-#define CHIP_WIDTH 64
-#define CHIP_HEIGHT 32
-#define TIMER_DELAY_MS 16
-#define SCALE_FACTOR 20
+#define CHIP_WIDTH             64
+#define CHIP_HEIGHT            32
+#define TIMER_DELAY_MS         16
+#define SCALE_FACTOR           20
 #define INSTRUCTIONS_PER_FRAME 10
 
-#define DISLPAY_SIZE 64 * 32
-#define STACK_SIZE 12
+#define DISLPAY_SIZE   64 * 32
+#define STACK_SIZE     12
 #define REGISTERS_SIZE 16
-#define VF_REGISTER 0xF
-#define KEYPAD_SIZE 16
-#define SPRITE_WIDTH 8
+#define VF_REGISTER    0xF
+#define KEYPAD_SIZE    16
+#define SPRITE_WIDTH   8
 
-#define FONT_CHAR_SIZE 5
+#define FONT_CHAR_SIZE     5
 #define FONT_START_ADDRESS 0
 
-#define Byte(a) (a * 1)
+#define Byte(a)      (a * 1)
 #define Kilobytes(a) (a * Byte(1024))
 
-#define CLEAR_OPCODE 0x00E0
+#define CLEAR_OPCODE  0x00E0
 #define RETURN_OPCODE 0x00EE
 
 #define OPCODE_8XY0 0x0000
@@ -57,17 +57,17 @@
 #define OPCODE_FX65 0x0065
 
 #define HUNDREDS 100
-#define TENS 10
+#define TENS     10
 
-#define MSB_MASK 0x80
+#define MSB_MASK  0x80
 #define MSB_SHIFT 7
 
-typedef u_int8_t u8;
+typedef u_int8_t  u8;
 typedef u_int16_t u16;
 typedef u_int32_t u32;
 typedef u_int64_t u64;
 
-typedef int8_t i8;
+typedef int8_t  i8;
 typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
@@ -97,10 +97,10 @@ typedef enum {
         NUM_OF_STATES,
 } emulator_state_t;
 
-const char *enum_state_lookup[NUM_OF_STATES] = {
-    [QUIT] = "QUIT",
+const char* enum_state_lookup[NUM_OF_STATES] = {
+    [QUIT]    = "QUIT",
     [RUNNING] = "RUNNING",
-    [PAUSED] = "PAUSED",
+    [PAUSED]  = "PAUSED",
 };
 
 typedef union {
@@ -108,7 +108,7 @@ typedef union {
 
         struct {
                 u16 NNN : 12;
-                u16 _ : 4;
+                u16 _   : 4;
         } addr;
 
         struct {
@@ -121,24 +121,24 @@ typedef union {
                 u8 Vy : 4;
                 u8 Vx : 4;
                 u8 op : 4;
-                u8 _ : 4;
+                u8 _  : 4;
         } reg_reg;
 
         struct {
                 u8 nibble : 4;
-                u8 Vy : 4;
-                u8 Vx : 4;
-                u8 op : 4;
+                u8 Vy     : 4;
+                u8 Vx     : 4;
+                u8 op     : 4;
         } reg_reg_nibble;
 
         struct {
                 u8 key : 4;
-                u8 Vx : 4;
-                u8 op : 8;
+                u8 Vx  : 4;
+                u8 op  : 8;
         } key_op;
 
         struct {
-                u8 Vx : 4;
+                u8  Vx : 4;
                 u16 op : 12;
         } timer_op;
 } instruction_t;
@@ -198,81 +198,80 @@ typedef enum {
 // Chip8
 typedef struct {
         emulator_state_t state;
-        u8 ram[Kilobytes(4)];
-        bool display[DISLPAY_SIZE];
-        u16 stack[STACK_SIZE];
-        u16 *stack_ptr;
-        u8 V[REGISTERS_SIZE];  // Register V0 to VF
-        u16 I;                 // Index register
-        u16 PC;                // Program Counter
-        u8 delay_timer;        // -- at 60hz when > 0
-        u8 sound_timer;        // -- at 60hz when > 0 and plays tone when > 0
-        bool keypad[KEYPAD_SIZE];  // Hex keypad 0-F
-        const char *rom_name;      // Name of the file emulating
-        instruction_t inst;        // current instruction
+        u8               ram[Kilobytes(4)];
+        bool             display[DISLPAY_SIZE];
+        u16              stack[STACK_SIZE];
+        u16*             stack_ptr;
+        u8               V[REGISTERS_SIZE];  // Register V0 to VF
+        u16              I;                  // Index register
+        u16              PC;                 // Program Counter
+        u8               delay_timer;        // -- at 60hz when > 0
+        u8          sound_timer;  // -- at 60hz when > 0 and plays tone when > 0
+        bool        keypad[KEYPAD_SIZE];  // Hex keypad 0-F
+        const char* rom_name;             // Name of the file emulating
+        instruction_t inst;               // current instruction
 } chip8_t;
 
-typedef void (*instruction_handler_t)(chip8_t *);
+typedef void (*instruction_handler_t)(chip8_t*);
 
-void inst_0NNN(chip8_t *chip8) {
+void inst_0NNN(chip8_t* chip8) {
         (void)chip8;  // Do nothing
 }
 
-void inst_00E0(chip8_t *chip8) {
+void inst_00E0(chip8_t* chip8) {
         DEBUG_LOG("Clear screen\n");
         memset(chip8->display, 0, sizeof(chip8->display));
 }
 
-void inst_00EE(chip8_t *chip8) {
+void inst_00EE(chip8_t* chip8) {
         chip8->stack_ptr--;
         chip8->PC = *chip8->stack_ptr;
 }
 
-void inst_1NNN(chip8_t *chip8) {
+void inst_1NNN(chip8_t* chip8) {
         DEBUG_LOG("Jump to address 0x%04X\n", chip8->inst.addr.NNN);
         chip8->PC = chip8->inst.addr.NNN;
 }
 
-void inst_2NNN(chip8_t *chip8) {
-        DEBUG_LOG(
-            "Call at 0x%04X | Push PC=0x%04X to stack\n",
-            chip8->inst.addr.NNN,
-            chip8->PC);
+void inst_2NNN(chip8_t* chip8) {
+        DEBUG_LOG("Call at 0x%04X | Push PC=0x%04X to stack\n",
+                  chip8->inst.addr.NNN,
+                  chip8->PC);
 
         *chip8->stack_ptr = chip8->PC;
         chip8->stack_ptr++;
         chip8->PC = chip8->inst.addr.NNN;
 }
 
-void inst_3XNN(chip8_t *chip8) {
+void inst_3XNN(chip8_t* chip8) {
         const u8 VxReg = chip8->inst.reg_byte.Vx;
-        const u8 byte = chip8->inst.reg_byte.KK;
+        const u8 byte  = chip8->inst.reg_byte.KK;
         DEBUG_LOG("If V%X == 0x%02X, skip next instruction\n", VxReg, byte);
         if (chip8->V[VxReg] == byte) {
                 chip8->PC += 2;
         }
 }
 
-void inst_ANNN(chip8_t *chip8) {
+void inst_ANNN(chip8_t* chip8) {
         DEBUG_LOG("I = 0x%04X\n", chip8->inst.addr.NNN);
         chip8->I = chip8->inst.addr.NNN;
 }
 
-void inst_6XNN(chip8_t *chip8) {
+void inst_6XNN(chip8_t* chip8) {
         const u8 VxReg = chip8->inst.reg_byte.Vx;
-        const u8 byte = chip8->inst.reg_byte.KK;
+        const u8 byte  = chip8->inst.reg_byte.KK;
         DEBUG_LOG("V%X = 0x%02X\n", VxReg, byte);
         chip8->V[VxReg] = byte;
 }
 
-void inst_7XNN(chip8_t *chip8) {
+void inst_7XNN(chip8_t* chip8) {
         const u8 VxReg = chip8->inst.reg_byte.Vx;
-        const u8 byte = chip8->inst.reg_byte.KK;
+        const u8 byte  = chip8->inst.reg_byte.KK;
         DEBUG_LOG("V%X += 0x%02X\n", VxReg, byte);
         chip8->V[VxReg] += byte;
 }
 
-void inst_DXYN(chip8_t *chip8) {
+void inst_DXYN(chip8_t* chip8) {
         const u8 X_CORD = chip8->inst.reg_reg_nibble.Vx;
         const u8 Y_CORD = chip8->inst.reg_reg_nibble.Vy;
         const u8 nibble = chip8->inst.reg_reg_nibble.nibble;
@@ -303,14 +302,13 @@ void inst_DXYN(chip8_t *chip8) {
                 }
         }
 
-        DEBUG_LOG(
-            "Draw sprite at Vx: %X, Vy: %X, height: %X\n",
-            X_CORD,
-            Y_CORD,
-            nibble);
+        DEBUG_LOG("Draw sprite at Vx: %X, Vy: %X, height: %X\n",
+                  X_CORD,
+                  Y_CORD,
+                  nibble);
 }
 
-void dispatch_zero_family(chip8_t *chip8) {
+void dispatch_zero_family(chip8_t* chip8) {
         switch (chip8->inst.opcode) {
                 case CLEAR_OPCODE:
                         inst_00E0(chip8);
@@ -319,23 +317,22 @@ void dispatch_zero_family(chip8_t *chip8) {
                         inst_00EE(chip8);
                         break;
                 default:
-                        DEBUG_LOG(
-                            "Unknown 0x0-family instruction: 0x%04X",
-                            chip8->inst.opcode);
+                        DEBUG_LOG("Unknown 0x0-family instruction: 0x%04X",
+                                  chip8->inst.opcode);
                         chip8->state = QUIT;
                         break;
         }
 }
 
-void inst_4XNN(chip8_t *chip8) {
-        const u8 Vx = chip8->inst.reg_byte.Vx;
+void inst_4XNN(chip8_t* chip8) {
+        const u8 Vx   = chip8->inst.reg_byte.Vx;
         const u8 byte = chip8->inst.reg_byte.KK;
         if (chip8->V[Vx] != byte) {
                 chip8->PC += 2;
         }
 }
 
-void inst_5XY0(chip8_t *chip8) {
+void inst_5XY0(chip8_t* chip8) {
         const u8 Vx = chip8->inst.reg_reg.Vx;
         const u8 Vy = chip8->inst.reg_reg.Vy;
         if (chip8->V[Vx] == chip8->V[Vy]) {
@@ -343,66 +340,66 @@ void inst_5XY0(chip8_t *chip8) {
         }
 }
 
-void inst_8XY0(chip8_t *c) {
-        u8 X = (c->inst.opcode >> 8) & 0xF;
-        u8 Y = (c->inst.opcode >> 4) & 0xF;
+void inst_8XY0(chip8_t* c) {
+        u8 X    = (c->inst.opcode >> 8) & 0xF;
+        u8 Y    = (c->inst.opcode >> 4) & 0xF;
         c->V[X] = c->V[Y];
 }
 
-void inst_8XY1(chip8_t *c) {
+void inst_8XY1(chip8_t* c) {
         u8 X = (c->inst.opcode >> 8) & 0xF;
         u8 Y = (c->inst.opcode >> 4) & 0xF;
         c->V[X] |= c->V[Y];
 }
 
-void inst_8XY2(chip8_t *c) {
+void inst_8XY2(chip8_t* c) {
         u8 X = (c->inst.opcode >> 8) & 0xF;
         u8 Y = (c->inst.opcode >> 4) & 0xF;
         c->V[X] &= c->V[Y];
 }
 
-void inst_8XY3(chip8_t *c) {
+void inst_8XY3(chip8_t* c) {
         u8 X = (c->inst.opcode >> 8) & 0xF;
         u8 Y = (c->inst.opcode >> 4) & 0xF;
         c->V[X] ^= c->V[Y];
 }
 
-void inst_8XY4(chip8_t *c) {
-        u8 X = (c->inst.opcode >> 8) & 0xF;
-        u8 Y = (c->inst.opcode >> 4) & 0xF;
-        u16 sum = c->V[X] + c->V[Y];
+void inst_8XY4(chip8_t* c) {
+        u8  X             = (c->inst.opcode >> 8) & 0xF;
+        u8  Y             = (c->inst.opcode >> 4) & 0xF;
+        u16 sum           = c->V[X] + c->V[Y];
         c->V[VF_REGISTER] = sum > 0xFF;  // Carry flag
-        c->V[X] = (u8)(sum & 0xFF);
+        c->V[X]           = (u8)(sum & 0xFF);
 }
 
-void inst_8XY5(chip8_t *c) {
-        u8 X = (c->inst.opcode >> 8) & 0xF;
-        u8 Y = (c->inst.opcode >> 4) & 0xF;
+void inst_8XY5(chip8_t* c) {
+        u8 X              = (c->inst.opcode >> 8) & 0xF;
+        u8 Y              = (c->inst.opcode >> 4) & 0xF;
         c->V[VF_REGISTER] = (c->V[X] >= c->V[Y]);  // borrow flag
         c->V[X] -= c->V[Y];
 }
 
-void inst_8XY6(chip8_t *c) {
+void inst_8XY6(chip8_t* c) {
         u8 X = (c->inst.opcode >> 8) & 0xF;
         // Algumas versões usam Vy em vez de Vx, mas a mais comum é Vx.
         c->V[VF_REGISTER] = c->V[X] & 0x1;  // LSB antes de shift
         c->V[X] >>= 1;
 }
 
-void inst_8XY7(chip8_t *c) {
-        u8 X = (c->inst.opcode >> 8) & 0xF;
-        u8 Y = (c->inst.opcode >> 4) & 0xF;
+void inst_8XY7(chip8_t* c) {
+        u8 X              = (c->inst.opcode >> 8) & 0xF;
+        u8 Y              = (c->inst.opcode >> 4) & 0xF;
         c->V[VF_REGISTER] = (c->V[Y] >= c->V[X]);  // borrow flag
-        c->V[X] = c->V[Y] - c->V[X];
+        c->V[X]           = c->V[Y] - c->V[X];
 }
 
-void inst_8XYE(chip8_t *c) {
-        u8 X = (c->inst.opcode >> 8) & 0xF;
+void inst_8XYE(chip8_t* c) {
+        u8 X              = (c->inst.opcode >> 8) & 0xF;
         c->V[VF_REGISTER] = (c->V[X] & 0x80) >> 7;  // MSB antes do shift
         c->V[X] <<= 1;
 }
 
-void inst_9XY0(chip8_t *c) {
+void inst_9XY0(chip8_t* c) {
         u8 X = (c->inst.opcode >> 8) & 0xF;
         u8 Y = (c->inst.opcode >> 4) & 0xF;
         if (c->V[X] != c->V[Y]) {
@@ -410,35 +407,35 @@ void inst_9XY0(chip8_t *c) {
         }
 }
 
-void inst_BNNN(chip8_t *chip8) {
+void inst_BNNN(chip8_t* chip8) {
         chip8->PC = chip8->inst.addr.NNN + chip8->V[0];
 }
 
-void inst_CXNN(chip8_t *chip8) {
-        const u8 Vx = chip8->inst.reg_byte.Vx;
-        const u8 KK = chip8->inst.reg_byte.KK;
+void inst_CXNN(chip8_t* chip8) {
+        const u8 Vx  = chip8->inst.reg_byte.Vx;
+        const u8 KK  = chip8->inst.reg_byte.KK;
         chip8->V[Vx] = (rand() & REGISTERS_SIZE) & KK;
 }
 
-void inst_EX9E(chip8_t *chip8) {
+void inst_EX9E(chip8_t* chip8) {
         const u8 Vx = chip8->inst.reg_byte.Vx;
         if (chip8->keypad[chip8->V[Vx]]) {
                 chip8->PC += 2;
         }
 }
 
-void inst_EXA1(chip8_t *chip8) {
+void inst_EXA1(chip8_t* chip8) {
         const u8 Vx = chip8->inst.reg_byte.Vx;
         if (!chip8->keypad[chip8->V[Vx]]) {
                 chip8->PC += 2;
         }
 }
 
-void inst_FX07(chip8_t *chip8) {
+void inst_FX07(chip8_t* chip8) {
         chip8->V[chip8->inst.reg_byte.Vx] = chip8->delay_timer;
 }
 
-void inst_FX0A(chip8_t *chip8) {
+void inst_FX0A(chip8_t* chip8) {
         for (u8 i = 0; i < KEYPAD_SIZE; ++i) {
                 if (chip8->keypad[i]) {
                         chip8->V[chip8->inst.reg_byte.Vx] = i;
@@ -448,44 +445,44 @@ void inst_FX0A(chip8_t *chip8) {
         chip8->PC -= 2;
 }
 
-void inst_FX15(chip8_t *chip8) {
+void inst_FX15(chip8_t* chip8) {
         chip8->delay_timer = chip8->V[chip8->inst.reg_byte.Vx];
 }
 
-void inst_FX18(chip8_t *chip8) {
+void inst_FX18(chip8_t* chip8) {
         chip8->sound_timer = chip8->V[chip8->inst.reg_byte.Vx];
 }
 
-void inst_FX1E(chip8_t *chip8) {
+void inst_FX1E(chip8_t* chip8) {
         chip8->I += chip8->V[chip8->inst.reg_byte.Vx];
 }
 
-void inst_FX29(chip8_t *chip8) {
+void inst_FX29(chip8_t* chip8) {
         chip8->I = 0 + (chip8->V[chip8->inst.reg_byte.Vx] * FONT_CHAR_SIZE);
 }
 
-void inst_FX33(chip8_t *chip8) {
-        const u8 val = chip8->V[chip8->inst.reg_byte.Vx];
-        chip8->ram[chip8->I] = val / HUNDREDS;
+void inst_FX33(chip8_t* chip8) {
+        const u8 val             = chip8->V[chip8->inst.reg_byte.Vx];
+        chip8->ram[chip8->I]     = val / HUNDREDS;
         chip8->ram[chip8->I + 1] = (val / TENS) % TENS;
         chip8->ram[chip8->I + 2] = val % TENS;
 }
 
-void inst_FX55(chip8_t *chip8) {
+void inst_FX55(chip8_t* chip8) {
         const u8 Vx = chip8->inst.reg_byte.Vx;
         for (u8 i = 0; i <= Vx; ++i) {
                 chip8->ram[chip8->I + i] = chip8->V[i];
         }
 }
 
-void inst_FX65(chip8_t *chip8) {
+void inst_FX65(chip8_t* chip8) {
         const u8 Vx = chip8->inst.reg_byte.Vx;
         for (u8 i = 0; i <= Vx; ++i) {
                 chip8->V[i] = chip8->ram[chip8->I + i];
         }
 }
 
-void dispatch_eight_family(chip8_t *chip8) {
+void dispatch_eight_family(chip8_t* chip8) {
         switch (chip8->inst.opcode & 0x000F) {  // NOLINT
                 case OPCODE_8XY0:
                         inst_8XY0(chip8);
@@ -515,15 +512,14 @@ void dispatch_eight_family(chip8_t *chip8) {
                         inst_8XYE(chip8);
                         break;
                 default:
-                        DEBUG_LOG(
-                            "Unknown 0x8-family instruction: 0x%04X",
-                            chip8->inst.opcode);
+                        DEBUG_LOG("Unknown 0x8-family instruction: 0x%04X",
+                                  chip8->inst.opcode);
                         chip8->state = QUIT;
                         break;
         }
 }
 
-void dispatch_E_family(chip8_t *chip8) {
+void dispatch_E_family(chip8_t* chip8) {
         switch (chip8->inst.opcode & 0x00FF) {  // NOLINT
                 case OPCODE_EX9E:
                         inst_EX9E(chip8);
@@ -532,15 +528,14 @@ void dispatch_E_family(chip8_t *chip8) {
                         inst_EXA1(chip8);
                         break;
                 default:
-                        DEBUG_LOG(
-                            "Unknown 0xE-family instruction: 0x%04X",
-                            chip8->inst.opcode);
+                        DEBUG_LOG("Unknown 0xE-family instruction: 0x%04X",
+                                  chip8->inst.opcode);
                         chip8->state = QUIT;
                         break;
         }
 }
 
-void dispatch_F_family(chip8_t *chip8) {
+void dispatch_F_family(chip8_t* chip8) {
         switch (chip8->inst.opcode & 0x00FF) {  // NOLINT
                 case OPCODE_FX07:
                         inst_FX07(chip8);
@@ -570,9 +565,8 @@ void dispatch_F_family(chip8_t *chip8) {
                         inst_FX65(chip8);
                         break;
                 default:
-                        DEBUG_LOG(
-                            "Unknown 0xF-family instruction: 0x%04X",
-                            chip8->inst.opcode);
+                        DEBUG_LOG("Unknown 0xF-family instruction: 0x%04X",
+                                  chip8->inst.opcode);
                         chip8->state = QUIT;
                         break;
         }

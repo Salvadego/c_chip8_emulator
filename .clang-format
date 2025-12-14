@@ -5,6 +5,58 @@ UseTab: Never
 ColumnLimit: 80
 
 AllowShortFunctionsOnASingleLine: None
-AlignAfterOpenBracket: AlwaysBreak
+# AlignAfterOpenBracket: AlwaysBreak
+AlignConsecutiveBitFields:
+  Enabled:         true
+  AcrossEmptyLines: true
+  AcrossComments:  true
+  AlignCompound:   true
+  AlignFunctionDeclarations: true
+  AlignFunctionPointers: true
+  PadOperators:    true
+AlignConsecutiveShortCaseStatements:
+  Enabled:         true
+  AcrossEmptyLines: true
+  AcrossComments:  true
+  AlignCaseArrows: true
+  AlignCaseColons: true
+AlignConsecutiveTableGenBreakingDAGArgColons:
+  Enabled:         true
+  AcrossEmptyLines: true
+  AcrossComments:  true
+  AlignCompound:   true
+  AlignFunctionDeclarations: true
+  AlignFunctionPointers: true
+  PadOperators:    true
+AlignConsecutiveTableGenCondOperatorColons:
+  Enabled:         true
+  AcrossEmptyLines: true
+  AcrossComments:  true
+  AlignCompound:   true
+  AlignFunctionDeclarations: true
+  AlignFunctionPointers: true
+  PadOperators:    true
+AlignConsecutiveTableGenDefinitionColons:
+  Enabled:         true
+  AcrossEmptyLines: true
+  AcrossComments:  true
+  AlignCompound:   true
+  AlignFunctionDeclarations: true
+  AlignFunctionPointers: true
+  PadOperators:    true
+
+
+AlignConsecutiveDeclarations: true
+AlignConsecutiveAssignments: true
+AlignConsecutiveMacros: true
+
+AlignArrayOfStructures: Right
+AlignOperands: Align
+
 BinPackArguments: false
 BinPackParameters: false
+
+IndentPPDirectives: AfterHash
+
+StatementMacros:
+  [ 'DefineResult', 'DefineOption', 'DefineVector', 'DefineSlice', 'DefineMap' ]
